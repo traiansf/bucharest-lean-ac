@@ -129,24 +129,33 @@ notation:10 Γ " ⊢ " σ " : * " => formationRule Γ σ
 notation:9 σ " →' " τ => 𝕋2.To σ τ 
 notation:9 Γ ";; " x " : " σ => TCtxt2.VarCtxt x σ Γ
 notation:9 Γ ";; " α " : * " => TCtxt2.TypeVarCtxt α Γ
+notation:9 "Π " α " : *, " σ => 𝕋2.TTo α σ
+notation:9 "λ' " x " : " σ ", " M => Λ2.Lam x σ M
+notation:9 "λ' " α " : *, " M => Λ2.TLam α M
+notation:9 M " ⟪" σ "⟫" => Λ2.TApp M σ
+
+instance {V 𝕍: Type} : Coe V (Λ2 V 𝕍) where
+  coe := .Var 
+instance {V 𝕍 : Type} : CoeFun (Λ2 V 𝕍) (fun _ => Λ2 V 𝕍 → Λ2 V 𝕍) where
+  coe := .App 
 
 lemma var_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (x : V) (σ : 𝕋2 𝕍) :
-  getType x Γ = some σ → (Γ ⊢ .Var x : σ) := by simp
+  getType x Γ = some σ → (Γ ⊢ x : σ) := by simp
 
 lemma appl_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (M N : Λ2 V 𝕍) (σ τ : 𝕋2 𝕍) : 
-  (Γ ⊢ M : (.To σ τ)) → (Γ ⊢ N : σ) → (Γ ⊢ (.App M N) : τ) := by
+  (Γ ⊢ M : σ →' τ) → (Γ ⊢ N : σ) → (Γ ⊢ M N : τ) := by
     intros h h'; unfold typingJudgement at *; simp [h, h']
 
 lemma abst_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (M : Λ2 V 𝕍) (x : V) (σ τ : 𝕋2 𝕍) :
-  ((Γ;; x : σ) ⊢ M : τ) → (Γ ⊢ .Lam x σ M : σ →' τ) := by
+  ((Γ;; x : σ) ⊢ M : τ) → (Γ ⊢ (λ' x : σ, M) : σ →' τ) := by
     intros h; unfold typingJudgement at *; simp [h]
 
 lemma appl₂_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (α : 𝕍) (M : Λ2 V 𝕍) (σ τ : 𝕋2 𝕍) :
-  (Γ ⊢ M : .TTo α σ) → (Γ ⊢ σ : *) → (Γ ⊢ .TApp M τ : substTVar α τ σ) := by
+  (Γ ⊢ M : Π α : *, σ) → (Γ ⊢ σ : *) → (Γ ⊢ M ⟪τ⟫ : substTVar α τ σ) := by
     intros h _; simp only [typingJudgement, typeOf] at *; simp [h]
 
 lemma abst₂_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (α : 𝕍) (M : Λ2 V 𝕍) (σ : 𝕋2 𝕍) :
-  ((Γ;; α : *) ⊢ M : σ) → (Γ ⊢ (.TLam α M) : (.TTo α σ)) := by
+  ((Γ;; α : *) ⊢ M : σ) → (Γ ⊢ (λ' α : *, M) : (Π α : *, σ)) := by
     intros h; unfold typingJudgement at h; simp [h]
 
 
