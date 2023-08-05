@@ -1,8 +1,16 @@
 import Lake
 open Lake DSL
 
+def globalArgs := #[
+  "-Dlinter.deprecated=false",
+  "-Dlinter.suspiciousUnexpanderPatterns=false",
+  "-Dlinter.unusedVariables=false",
+  "-DwarningAsError=true"
+]
+
 package «nederpelt» {
-  -- add package configuration options here
+  moreLeanArgs := globalArgs
+  moreServerArgs := globalArgs
 }
 
 lean_lib «Nederpelt» {
