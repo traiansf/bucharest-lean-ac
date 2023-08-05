@@ -135,7 +135,7 @@ lemma var_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V
 
 lemma appl_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (M N : Λ2 V 𝕍) (σ τ : 𝕋2 𝕍) : 
   (Γ ⊢ M : (.To σ τ)) → (Γ ⊢ N : σ) → (Γ ⊢ (.App M N) : τ) := by
-    intros h h'; unfold typingJudgement at *; simp only [typeOf, h, h', Option.some.injEq, ite_true]
+    intros h h'; unfold typingJudgement at *; simp [h, h']
 
 lemma abst_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (M : Λ2 V 𝕍) (x : V) (σ τ : 𝕋2 𝕍) :
   ((Γ;; x : σ) ⊢ M : τ) → (Γ ⊢ .Lam x σ M : σ →' τ) := by
@@ -143,7 +143,7 @@ lemma abst_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 
 
 lemma appl₂_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (α : 𝕍) (M : Λ2 V 𝕍) (σ τ : 𝕋2 𝕍) :
   (Γ ⊢ M : .TTo α σ) → (Γ ⊢ σ : *) → (Γ ⊢ .TApp M τ : substTVar α τ σ) := by
-    intros h _; simp at *; simp [h]
+    intros h _; simp only [typingJudgement, typeOf] at *; simp [h]
 
 lemma abst₂_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (α : 𝕍) (M : Λ2 V 𝕍) (σ : 𝕋2 𝕍) :
   ((Γ;; α : *) ⊢ M : σ) → (Γ ⊢ (.TLam α M) : (.TTo α σ)) := by
