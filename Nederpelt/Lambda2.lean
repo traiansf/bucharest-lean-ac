@@ -79,11 +79,11 @@ lemma typeOfDefinedOfInTCtxt {V 𝕍 : Type} [DecidableEq V] :
   intros Γ x;
   induction' Γ with α Γ h_ind x' σ Γ h_ind
   · simp
-  · simp; assumption
-  · simp;  
+  · simp only [DomTCtxt, getType]; assumption
+  · simp only [DomTCtxt, Finset.mem_union, Finset.mem_singleton, getType];  
     by_cases h' : x = x'
     · simp [h']
-    · simp [h']; assumption
+    · simp only [h', or_false, ite_false]; assumption
 
 def wellFormedTCtxt {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] : TCtxt2 V 𝕍 → Prop 
 | .Empty => True
