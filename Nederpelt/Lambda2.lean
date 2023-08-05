@@ -122,8 +122,33 @@ def typingJudgement {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍]
     (Γ : TCtxt2 V 𝕍) (M : Λ2 V 𝕍) (σ : 𝕋2 𝕍) : Prop :=
   typeOf Γ M = some σ
 
-notation:10 Γ " ⊢ " M " : " σ => typingJudgement Γ M σ
+def formationRule {V 𝕍 : Type} [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (σ : 𝕋2 𝕍) : Prop := freeTVarsOfType σ ⊆ TDomTCtxt Γ
 
-example {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] : ∀ (x : V) (α : 𝕍),  
-    .VarCtxt x (.TVar α) (.TypeVarCtxt α .Empty) ⊢ .Var x : .TVar α := by simp
+notation:10 Γ " ⊢ " M " : " σ => typingJudgement Γ M σ
+notation:10 Γ " ⊢ " σ " : * " => formationRule Γ σ
+notation:9 σ " →' " τ => 𝕋2.To σ τ 
+notation:9 Γ ";; " x " : " σ => TCtxt2.VarCtxt x σ Γ
+notation:9 Γ ";; " α " : * " => TCtxt2.TypeVarCtxt α Γ
+
+lemma var_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (x : V) (σ : 𝕋2 𝕍) :
+  getType x Γ = some σ → (Γ ⊢ .Var x : σ) := by simp
+
+lemma appl_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (M N : Λ2 V 𝕍) (σ τ : 𝕋2 𝕍) : 
+  (Γ ⊢ M : (.To σ τ)) → (Γ ⊢ N : σ) → (Γ ⊢ (.App M N) : τ) := by
+    intros h h'; unfold typingJudgement at *; simp only [typeOf, h, h', Option.some.injEq, ite_true]
+
+lemma abst_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (M : Λ2 V 𝕍) (x : V) (σ τ : 𝕋2 𝕍) :
+  ((Γ;; x : σ) ⊢ M : τ) → (Γ ⊢ .Lam x σ M : σ →' τ) := by
+    intros h; unfold typingJudgement at *; simp [h]
+
+lemma appl₂_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (α : 𝕍) (M : Λ2 V 𝕍) (σ τ : 𝕋2 𝕍) :
+  (Γ ⊢ M : .TTo α σ) → (Γ ⊢ σ : *) → (Γ ⊢ .TApp M τ : substTVar α τ σ) := by
+    intros h _; simp at *; simp [h]
+
+lemma abst₂_rule {V 𝕍 : Type} [DecidableEq V] [DecidableEq 𝕍] (Γ : TCtxt2 V 𝕍) (α : 𝕍) (M : Λ2 V 𝕍) (σ : 𝕋2 𝕍) :
+  ((Γ;; α : *) ⊢ M : σ) → (Γ ⊢ (.TLam α M) : (.TTo α σ)) := by
+    intros h; unfold typingJudgement at h; simp [h]
+
+
+  
 
