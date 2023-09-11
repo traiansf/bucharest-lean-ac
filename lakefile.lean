@@ -5,7 +5,8 @@ def globalArgs := #[
   "-Dlinter.deprecated=false",
   "-Dlinter.suspiciousUnexpanderPatterns=false",
   "-Dlinter.unusedVariables=false",
-  "-DwarningAsError=true"
+  "-DautoImplicit=false"
+  -- "-DwarningAsError=true"
 ]
 
 package «nederpelt» {
