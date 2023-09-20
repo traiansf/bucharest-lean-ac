@@ -42,6 +42,12 @@ def freeVarsOfTerm : Λ V 𝕍 → Finset V
 | .Lam x _ M => (freeVarsOfTerm M).erase x
 
 @[simp]
+def boundVarsOfTerm : Λ V 𝕍 → Finset V
+| .Var _ => {}
+| .App M N => (boundVarsOfTerm M) ∪ (boundVarsOfTerm N)
+| .Lam x _ M => {x} ∪ (boundVarsOfTerm M)
+
+@[simp]
 def subVarInTerm (x : V) (N : Λ V 𝕍) : Λ V 𝕍 → Λ V 𝕍
 | .Var x'     => if x = x'
                  then N 
@@ -254,7 +260,10 @@ lemma AlphaEquivPreservesType' :
              (∃ z, (if y = x then some x' else var_map y) = some z ∧ getType y (Γ;; x : τ) = getType z (Γ';; x' : τ')) := by 
           introv
           by_cases h : y = x
-          simp [h, alpha_equiv.2]
+          · simp [h, alpha_equiv.2]
+          · simp [h]
+            specialize ctxt_equiv y
+            sorry
         specialize ih alpha_equiv.1 ctxt_equiv' h'
         rw [ih]
 
@@ -275,8 +284,11 @@ def lambda2BetaReduction : Λ V 𝕍 → Λ V 𝕍 → Prop
       )
     ) ∨
     (
-      match M with
-      | .Lam x σ M' => R = subVarInTerm x N M'
+      ∃ M', (M' =ₐ M) ∧
+      match M' with
+      | .Lam x σ M' => 
+        R = subVarInTerm x N M' ∧
+          ∀ x, x ∈ boundVarsOfTerm M' → x ∉ freeVarsOfTerm N
       | _           => False
     ) 
 | .Var _, _ => False
