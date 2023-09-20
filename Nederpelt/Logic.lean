@@ -189,7 +189,7 @@ example (a : α) : (∀ x, p x ∧ q x) → p a := by
 
 lemma forall_imp : (∀ x, p x → q x) → (∀ x, p x) → (∀ x, q x) := sorry 
 
-lemma forall_and : ((∀ x, p x) ∧ (∀ x, q x)) ↔ (∀ x, p x) ∧ (∀ x, q x) := sorry  
+lemma forall_and : ((∀ x, p x) ∧ (∀ x, q x)) ↔ (∀ x, p x ∧ q x) := sorry  
 
 /-
   A proof of `∃ x : α, p x` is (dependent) pair made 
