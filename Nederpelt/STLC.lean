@@ -42,6 +42,12 @@ def freeVarsOfTerm : Λ V 𝕍 → Finset V
 | .Lam x _ M => (freeVarsOfTerm M).erase x
 
 @[simp]
+def boundVarsOfTerm : Λ V 𝕍 → Finset V
+| .Var x     => {}
+| .App M N   => (boundVarsOfTerm M) ∪ (boundVarsOfTerm N)
+| .Lam x _ M => (boundVarsOfTerm M) ∪ {x}
+
+@[simp]
 def subVarInTerm (x : V) (N : Λ V 𝕍) : Λ V 𝕍 → Λ V 𝕍
 | .Var x'     => if x = x'
                  then N 
@@ -114,14 +120,14 @@ def typeOf (Γ : TCtxt V 𝕍) : Λ V 𝕍 → Option (𝕋 𝕍)
 | .Var x => getType x Γ
 | .App M N => 
   match typeOf Γ M with
-  | .some (τ →' σ) => 
+  | some (τ →' σ) => 
     if typeOf Γ N = some τ
     then some σ
     else none
   | _               => none
 | .Lam x σ M => 
   match typeOf (.VarCtxt x σ Γ) M with 
-  | .some τ => some (.To σ τ)
+  | some τ => some (.To σ τ)
   | _       => none
 
 
@@ -145,6 +151,21 @@ lemma ctxtTypeOfPreservation {M : Λ V 𝕍} :
       exact h x (Finset.mem_erase_of_ne_of_mem h'' h')
     simp [ih h]
 
+lemma typeOfRebind {M : Λ V 𝕍} {Γ : TCtxt V 𝕍} {y : V} {σ σ' : 𝕋 𝕍} :
+    typeOf ((Γ;; y : σ);; y : σ') M = typeOf (Γ;; y : σ') M := by
+  apply ctxtTypeOfPreservation
+  intros x Hx
+  rw [getTypeRebind]
+
+lemma typeOfReorder {M : Λ V 𝕍} {Γ : TCtxt V 𝕍} {x y : V} {σ σ' : 𝕋 𝕍} :
+    x ≠ y → 
+      typeOf ((Γ;;x : σ);; y : σ') M = typeOf ((Γ;;y : σ');; x : σ) M := by
+  intros Hxy
+  apply ctxtTypeOfPreservation
+  intros x Hx
+  rw [getTypeReorder]
+  assumption
+ 
 @[simp]
 def typingJudgement
     (Γ : TCtxt V 𝕍) (M : Λ V 𝕍) (σ : 𝕋 𝕍) : Prop :=
@@ -254,16 +275,57 @@ lemma AlphaEquivPreservesType' :
              (∃ z, (if y = x then some x' else var_map y) = some z ∧ getType y (Γ;; x : τ) = getType z (Γ';; x' : τ')) := by 
           introv
           by_cases h : y = x
-          simp [h, alpha_equiv.2]
-        specialize ih alpha_equiv.1 ctxt_equiv' h'
-        rw [ih]
+          . simp [h, alpha_equiv.2]
+          . simp [h]
+            rcases alpha_equiv with ⟨alpha_equiv, Heq⟩
+            rcases ctxt_equiv y with ⟨Hy1, Hy2⟩ | ⟨y', Hy1, Hy2⟩
+            . left
+              constructor
+              . assumption
+              . split_ifs
+                . sorry
+                . assumption
+            . right
+              use y'
+              constructor
+              . assumption
+              . split_ifs
+                . sorry
+                . assumption
+        sorry
 
 lemma AlphaEquivPreservesType :
   ∀ {M M' : Λ V 𝕍} {Γ : TCtxt V 𝕍} {σ : 𝕋 𝕍},
       (M =ₐ M') → (Γ ⊢ M : σ) → (Γ ⊢ M' : σ) := by
   introv; intro h h'
   exact AlphaEquivPreservesType' h (by introv; simp) h'
-  
+
+def substitutible (N M : Λ V 𝕍) : Prop :=
+  ∀ x, x ∈ boundVarsOfTerm M → x ∉ freeVarsOfTerm N
+
+lemma substitutible_app_l : forall M N P : Λ V 𝕍, 
+  substitutible M (.App N P) -> substitutible M N := by
+  intros M N P Hsub x Hx
+  apply Hsub
+  simp
+  left
+  assumption
+
+lemma substitutible_app_r : forall M N P : Λ V 𝕍, 
+  substitutible M (.App N P) -> substitutible M P := by
+  intros M N P Hsub x Hx
+  apply Hsub
+  simp
+  right
+  assumption
+
+lemma substitutible_lam : forall (M N : Λ V 𝕍) x σ, 
+  substitutible M (.Lam x σ N) -> substitutible M N := by
+  intros M N x σ Hsub x' Hx'
+  apply Hsub
+  simp
+  left
+  assumption
 
 def lambda2BetaReduction : Λ V 𝕍 → Λ V 𝕍 → Prop
 | .Lam x σ M, R => ∃ M', R = Λ.Lam x σ M' ∧ lambda2BetaReduction M M'
@@ -274,7 +336,7 @@ def lambda2BetaReduction : Λ V 𝕍 → Λ V 𝕍 → Prop
         (lambda2BetaReduction N N' ∧ M' = M)
       )
     ) ∨
-    (
+    (∃ M', (M =ₐ M') ∧ substitutible N M' ∧
       match M with
       | .Lam x σ M' => R = subVarInTerm x N M'
       | _           => False
@@ -295,9 +357,44 @@ lemma varSubPreservesTypeVar
   · simp
 
 lemma varSubPreservesType {M N : Λ V 𝕍} {x : V} {σ : 𝕋 𝕍} :
-    ∀ {Γ : TCtxt V 𝕍}, (Γ ⊢ N : σ) → typeOf (Γ;; x : σ) M = typeOf Γ (subVarInTerm x N M) := by sorry 
+    substitutible N M ->
+    ∀ {Γ : TCtxt V 𝕍}, (Γ ⊢ N : σ) → typeOf (Γ;; x : σ) M = typeOf Γ (subVarInTerm x N M) := by
+  induction M with
+  | Var y =>
+    intros Hsub Γ HN
+    simp
+    by_cases h' : x = y
+    . simp [h']
+      apply Eq.symm
+      exact HN
+    . simp [h']
+      intros Hc
+      apply False.elim
+      apply h'
+      rw [Hc]
+  | App M' N' IHM' IHN' =>
+    intros Hsub Γ HN
+    simp
+    rw [IHM', IHN']
+    . apply substitutible_app_r
+      assumption
+    . assumption
+    . apply substitutible_app_l
+      assumption
+    . assumption
+  | Lam y τ M' IHM' =>
+    intros Γ HN
+    simp
+    intros Htype
+    split_ifs with h
+    . rw [h, typeOfRebind]
+    . rw [typeOfReorder, IHM']
+      . apply substitutible_lam
+        assumption
+      . unfold typingJudgement
+        
 
-      
+
 theorem betaReductionPreservesType {Γ : TCtxt V 𝕍} {M M' : Λ V 𝕍} {σ : 𝕋 𝕍} :
   (M ↠ M') → (Γ ⊢ M : σ) → (Γ ⊢ M' : σ) := by
     sorry

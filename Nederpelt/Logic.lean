@@ -47,7 +47,9 @@ example : p → (p → q) → q := by
   -- so we can apply `hpq` on `hp` to get something of type `q`.
   exact (hpq hp)
 
-lemma imp_trans : (p → q) → (p → r) → (p → r) := sorry 
+lemma imp_trans : (p → q) → (q → r) → (p → r) := by
+  intros hpq hqr hp
+  exact (hqr (hpq hp))
 
 /-
 You can use the `#print` command to see the definition of a constant.
@@ -56,9 +58,15 @@ The notation `¬p` can be used for it.
 -/
 #print Not 
 
-lemma dni : p → ¬¬p := sorry 
+lemma dni : p → ¬¬p := by
+  intros Hp Hnp
+  exact (Hnp Hp)
 
-lemma contraposition : (p → q) → (¬q → ¬p) := sorry 
+lemma contraposition : (p → q) → (¬q → ¬p) := by
+  intros Hpq Hnq Hp
+  apply Hnq
+  apply Hpq
+  exact Hp
 
 /-
   Beyond implication and negation, 
@@ -83,7 +91,11 @@ example : False → q := by
   apply False.elim 
   assumption
 
-example : p → ¬p → q := sorry 
+example : p → ¬p → q := by
+  intros Hp Hnp
+  apply False.elim
+  apply Hnp
+  assumption
   
 /-
   `And` has two eliminators and an introduction principle.
@@ -100,7 +112,11 @@ example : p → q → p ∧ q := by
   intros hp hq 
   exact (And.intro hp hq)
 
-lemma and_comm : p ∧ q → q ∧ p := sorry 
+lemma and_comm : p ∧ q → q ∧ p := by
+  intros Hpq
+  apply And.intro
+  . exact (And.right Hpq)
+  . exact (And.left Hpq)
 
 /-
   The `rcases` tactic performs the deconstruction of a hypothesis of an induction type
@@ -111,7 +127,14 @@ example : p ∧ (q ∧ r) → r := by
   rcases h with ⟨hp, hq, hr⟩
   assumption
 
-lemma and_assoc : p ∧ (q ∧ r) → (p ∧ q) ∧ r := sorry  
+lemma and_assoc : p ∧ (q ∧ r) → (p ∧ q) ∧ r := by
+  intros Hpqr
+  rcases Hpqr with ⟨Hp, Hq, Hr⟩
+  apply And.intro
+  . apply And.intro
+    . assumption
+    . assumption
+  . assumption
 
 /-
   `Or` is dual to `And`. It has two constructors and one eliminator.
@@ -133,15 +156,36 @@ example : (p ∨ q) → (q ∨ p) := by
   . apply Or.inl 
     assumption
 
-lemma or_of_and : (p ∧ q) → (p ∨ q) := sorry 
+lemma or_of_and : (p ∧ q) → (p ∨ q) := by
+  intros Hpq
+  rcases Hpq with ⟨Hp, Hq⟩
+  apply Or.inl
+  assumption
 
-lemma or_assoc : p ∨ (q ∨ r) → (p ∨ q) ∨ r := sorry  
+lemma or_assoc : p ∨ (q ∨ r) → (p ∨ q) ∨ r := by
+  intros Hpqr
+  rcases Hpqr with Hp | Hq | Hr
+  . apply Or.inl
+    apply Or.inl
+    assumption
+  . apply Or.inl
+    apply Or.inr
+    assumption
+  . apply Or.inr
+    assumption
 
 /-
   To prove an equivalence, you just need to prove both implications,
   as witnessed by `Iff.intro`
 -/
-example : (p → q → r) ↔ (p ∧ q → r) := sorry 
+example : (p → q → r) ↔ (p ∧ q → r) := by
+  apply Iff.intro
+  . intros Hpqr Hpq
+    rcases Hpq with ⟨Hp, Hq⟩
+    apply Hpqr <;> assumption
+  . intros Hpqr Hp Hq
+    apply Hpqr
+    apply And.intro <;> assumption
 
 /-
   Lean is by default classical. 
@@ -152,14 +196,26 @@ example : (p → q → r) ↔ (p ∧ q → r) := sorry
   You can use `by_cases h : p` tactic to split the proof 
   into the case when `p` holds, and the case `¬p` holds.
 -/
-lemma dn : ¬¬p ↔ p := sorry 
+lemma dn : ¬¬p ↔ p := by
+  apply Iff.intro
+  . intros Hnnp
+    rcases (Classical.em p) with Hp | Hnp
+    . assumption
+    . apply False.elim
+      apply Hnnp
+      assumption
+  . intros Hp Hnp
+    apply Hnp
+    assumption
 
-lemma contraposition' : (¬q → ¬p) → (p → q) := sorry 
+lemma contraposition' : (¬q → ¬p) → (p → q) := by
+  intros Hnqnp Hp
+  rcases (Classical.em q) with Hq | Hnq
+  . assumption
+  . apply False.elim
+    apply Hnqnp <;> assumption
 
 end Propositional
-
-
-
 
 section FirstOrder
 
@@ -187,9 +243,20 @@ example (a : α) : (∀ x, p x ∧ q x) → p a := by
   specialize h a
   exact h.left
 
-lemma forall_imp : (∀ x, p x → q x) → (∀ x, p x) → (∀ x, q x) := sorry 
+lemma forall_imp : (∀ x, p x → q x) → (∀ x, p x) → (∀ x, q x) := by
+  intros Hpq Hp a
+  apply Hpq
+  apply Hp
 
-lemma forall_and : ((∀ x, p x) ∧ (∀ x, q x)) ↔ (∀ x, p x ∧ q x) := sorry  
+lemma forall_and : ((∀ x, p x) ∧ (∀ x, q x)) ↔ (∀ x, p x ∧ q x) := by
+  apply Iff.intro
+  . intros Hpq a
+    rcases Hpq with ⟨Hp, Hq⟩
+    apply And.intro
+    . apply Hp
+    . apply Hq
+  . intros Hpq
+    apply And.intro <;> intros a<;> rcases (Hpq a) <;> assumption
 
 /-
   A proof of `∃ x : α, p x` is (dependent) pair made 
@@ -211,10 +278,18 @@ example : (∀ x, p x) → (∃ x, p x) := by
   use w 
   exact h w
 
-lemma not_exists : (¬ ∃ x, p x) → ∀ x, ¬p x := sorry 
+lemma not_exists : (¬ ∃ x, p x) → ∀ x, ¬p x := by
+  intros Hnex a Hp
+  apply Hnex
+  use a
+  assumption
 
 /- `∃` is an inductive, so you can use `rcases` on it, as before -/
-lemma exists_not : (∃ x, ¬ p x) → ¬∀ x, p x := sorry 
+lemma exists_not : (∃ x, ¬ p x) → ¬∀ x, p x := by
+  intros Hex Hall
+  rcases Hex with ⟨a, Hnp⟩
+  apply Hnp
+  apply Hall
 
 /-
   The following is intuitionistically false. 
@@ -223,9 +298,14 @@ lemma exists_not : (∃ x, ¬ p x) → ¬∀ x, p x := sorry
   from the hypothesis `¬p`.
 -/
 
-lemma not_forall_not : (¬∀ x, ¬ p x) → (∃ x, p x) := sorry
-  
+lemma not_forall_not : (¬∀ x, ¬ p x) → (∃ x, p x) := by
+  intros Hnall
+  rewrite [<- (dn (∃ x, p x))]
+  intros Hnex
+  apply Hnall
+  intros a Hpa
+  apply Hnex
+  use a
+  assumption
 
 end FirstOrder
-
-
