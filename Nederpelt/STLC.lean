@@ -220,7 +220,7 @@ lemma AlphaEquivPreservesType' :
   ∀ {M' M : Λ V 𝕍} {Γ Γ' : TCtxt V 𝕍} {σ : 𝕋 𝕍}
     {var_map : V → Option V},
       AlphaEquiv' var_map M M' →
-      (∀ x : V, 
+      (∀ x : V, x ∈ freeVarsOfTerm M →
         (var_map x = none ∧ getType x Γ = getType x Γ') ∨
         (∃ y : V, var_map x = some y ∧ getType x Γ = getType y Γ')
       )
@@ -250,35 +250,57 @@ lemma AlphaEquivPreservesType' :
       simp at alpha_equiv
       rw [←appl_rule] at h
       rcases h with ⟨τ, h₀, h₁⟩
-      specialize ih₀ alpha_equiv.1 ctxt_equiv h₀
-      specialize ih₁ alpha_equiv.2 ctxt_equiv h₁
+      have ctxt_equiv₀ : ∀ (x : V), x ∈ freeVarsOfTerm M₀ →
+        var_map x = none ∧ getType x Γ = getType x Γ' ∨ ∃ y, var_map x = some y ∧ getType x Γ = getType y Γ'
+      {
+        intros x Hx 
+        apply ctxt_equiv
+        simp
+        left
+        assumption
+      }
+      have ctxt_equiv₁ : ∀ (x : V), x ∈ freeVarsOfTerm M₁ →
+        var_map x = none ∧ getType x Γ = getType x Γ' ∨ ∃ y, var_map x = some y ∧ getType x Γ = getType y Γ'
+      {
+        intros x Hx 
+        apply ctxt_equiv
+        simp
+        right
+        assumption
+      }
+      specialize ih₀ alpha_equiv.1 ctxt_equiv₀ h₀
+      specialize ih₁ alpha_equiv.2 ctxt_equiv₁ h₁
+      simp
       simp at ih₀ ih₁
       simp [ih₀, ih₁]
   | Lam x' τ' M' ih =>
     introv
     intros alpha_equiv ctxt_equiv h
     match M with
+    | .Var _ => contradiction
+    | .App _ _ => contradiction
     | .Lam x τ M =>
-      simp at alpha_equiv
-      simp at h
+      simp at alpha_equiv h ctxt_equiv
       generalize h' : typeOf (Γ;; x : τ) M = aux
       rw [h'] at h
       match aux with
+      | none => contradiction
       | some σ' =>
         simp at h
         rw [alpha_equiv.2] at h
         rw [←h]
         simp
+        
         have ctxt_equiv' : 
-         ∀ (y : V), 
+         ∀ (y : V), y ∈ freeVarsOfTerm M →
              ((if y = x then some x' else var_map y) = none ∧ getType y (Γ;; x : τ) = getType y (Γ';; x' : τ')) ∨ 
              (∃ z, (if y = x then some x' else var_map y) = some z ∧ getType y (Γ;; x : τ) = getType z (Γ';; x' : τ')) := by 
-          introv
+          intros y Hy
           by_cases h : y = x
           . simp [h, alpha_equiv.2]
           . simp [h]
             rcases alpha_equiv with ⟨alpha_equiv, Heq⟩
-            rcases ctxt_equiv y with ⟨Hy1, Hy2⟩ | ⟨y', Hy1, Hy2⟩
+            rcases ctxt_equiv y h Hy with ⟨Hy1, Hy2⟩ | ⟨y', Hy1, Hy2⟩
             . left
               constructor
               . assumption
