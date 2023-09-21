@@ -337,7 +337,7 @@ def lambda2BetaReduction : Λ V 𝕍 → Λ V 𝕍 → Prop
       )
     ) ∨
     (∃ M', (M =ₐ M') ∧ substitutible N M' ∧
-      match M with
+      match M' with
       | .Lam x σ M' => R = subVarInTerm x N M'
       | _           => False
     ) 
@@ -383,20 +383,92 @@ lemma varSubPreservesType {M N : Λ V 𝕍} {x : V} {σ : 𝕋 𝕍} :
       assumption
     . assumption
   | Lam y τ M' IHM' =>
-    intros Γ HN
+    intros Hsubst Γ HN
     simp
-    intros Htype
     split_ifs with h
     . rw [h, typeOfRebind]
     . rw [typeOfReorder, IHM']
       . apply substitutible_lam
         assumption
       . unfold typingJudgement
-        
-
+        rewrite [<- HN]
+        apply ctxtTypeOfPreservation
+        intros t Ht
+        simp
+        intros Hty
+        apply False.elim
+        apply Hsubst t
+        . simp
+          right
+          assumption
+        . assumption
+      . assumption
 
 theorem betaReductionPreservesType {Γ : TCtxt V 𝕍} {M M' : Λ V 𝕍} {σ : 𝕋 𝕍} :
   (M ↠ M') → (Γ ⊢ M : σ) → (Γ ⊢ M' : σ) := by
-    sorry
-
-      
+  revert Γ M' σ
+  induction M <;> intros Γ M' σ Hbeta HM
+  case Var => contradiction
+  case Lam x τ Mx IHMx =>
+    rcases Hbeta with ⟨Mx', HMx', Hbeta⟩
+    subst M'
+    simp
+    simp at HM
+    generalize h' : typeOf (Γ;; x : τ) Mx = υ; rw [h'] at HM
+    rcases υ with none | υ
+    . contradiction
+    . simp at HM
+      subst σ
+      specialize IHMx Hbeta h'
+      rw [IHMx]
+  case App  M N IHM IHN =>
+    rcases Hbeta with ⟨M1, N1, Heq, ⟨Hbeta,Heq'⟩ | ⟨Hbeta,Heq'⟩⟩ | ⟨M1, Halpha, ⟨Hsubst, Hbeta⟩⟩
+    . subst N1 M'
+      simp at HM |-
+      generalize h' : typeOf Γ M = υ; rw [h'] at HM
+      rcases υ with none | υ
+      . contradiction
+      . rcases υ with x | ⟨τ',σ'⟩
+        . contradiction
+        . simp at HM
+          specialize IHM Hbeta h'
+          rw [IHM]
+          assumption
+    . subst M1 M'
+      simp at HM |-
+      generalize HtM : typeOf Γ M = tM; rw [HtM] at HM
+      rcases tM with none | tM
+      . contradiction
+      . rcases tM with x | ⟨τ',σ'⟩
+        . contradiction
+        . simp at HM |-
+          split_ifs at HM with HtN ; simp at HM
+          subst σ'
+          specialize IHN Hbeta HtN
+          rw [IHN]
+          simp
+    . rcases M1 with _ | _ | ⟨x,σx,Mx⟩ <;> simp at Hbeta
+      subst M'
+      simp at HM |-
+      generalize HtM : typeOf Γ M = tM; rw [HtM] at HM
+      rcases tM with none | tM
+      . contradiction
+      . rcases tM with x | ⟨τ',σ'⟩
+        . contradiction
+        . simp at HM
+          have HtM' := AlphaEquivPreservesType Halpha HtM
+          simp at HtM'
+          generalize HtMx : typeOf (Γ;; x : σx) Mx = tMx; rw [HtMx] at HtM'
+          rcases tMx with none | tMx
+          . contradiction
+          . simp at HtM'
+            rcases HtM'
+            subst τ' σ'
+            split_ifs at HM with HtN ; simp at HM
+            subst tMx
+            rewrite [<- HtMx]
+            symm
+            apply varSubPreservesType
+            . apply substitutible_lam
+              assumption
+            . assumption
