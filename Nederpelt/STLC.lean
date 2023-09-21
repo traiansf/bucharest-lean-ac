@@ -1,10 +1,11 @@
 import Mathlib.Data.Finset.Basic
+import Mathlib.Data.Finset.Image
 
 set_option autoImplicit false 
 
 inductive 𝕋 (𝕍 : Type) : Type
 | TConst : 𝕍    → 𝕋 𝕍
-| To   : 𝕋 𝕍 → 𝕋 𝕍 → 𝕋 𝕍3
+| To   : 𝕋 𝕍 → 𝕋 𝕍 → 𝕋 𝕍
 deriving DecidableEq
 
 inductive Λ (V : Type) (𝕍 : Type) : Type
@@ -70,7 +71,7 @@ def AlphaEquiv' (var_map₀ var_map₁ : V →  V) : Λ V 𝕍 → Λ V 𝕍 →
 | .App M₀ M₀', .App M₁ M₁' => 
   AlphaEquiv' var_map₀ var_map₁ M₀ M₁ ∧
   AlphaEquiv' var_map₀ var_map₁ M₀' M₁'
-| .Lam x₀ σ₀ M₀, .Lam x₁ σ₁ M₁ => σ₀ = σ₁ ∧ ∃ x' : V, x' ∉ (freeVarsOfTerm M₀).map var_map₀ ∪ varsOfTerm M₁ ∧
+| .Lam x₀ σ₀ M₀, .Lam x₁ σ₁ M₁ => σ₀ = σ₁ ∧ ∃ x' : V, x' ∉ (freeVarsOfTerm M₀).image var_map₀ ∪ (freeVarsOfTerm M₁).image var_map₁ ∧
   AlphaEquiv' (var_update var_map₀ x₀ x') (var_update var_map₁ x₁ x') M₀ M₁
 | _, _ => False
   
@@ -134,7 +135,6 @@ def typeOf (Γ : TCtxt V 𝕍) : Λ V 𝕍 → Option (𝕋 𝕍)
   match typeOf (.VarCtxt x σ Γ) M with 
   | some τ => some (.To σ τ)
   | _       => none
-
 
 lemma ctxtTypeOfPreservation {M : Λ V 𝕍} : 
   ∀ {Γ Γ': TCtxt V 𝕍},
@@ -289,32 +289,50 @@ lemma AlphaEquivPreservesType' :
             have h' : y' = x' := by
               unfold var_update at Hupdate
               simp at Hupdate
-
-
-          simp [h]
-          . simp [h]
-            rcases alpha_equiv with ⟨alpha_equiv, Heq⟩
-            rcases ctxt_equiv y h Hy with ⟨Hy1, Hy2⟩ | ⟨y', Hy1, Hy2⟩
-            . left
-              constructor
+              split_ifs at Hupdate with Hxy'
               . assumption
-              . split_ifs
-                . sorry
-                . assumption
-            . right
-              use y'
-              constructor
-              . assumption
-              . split_ifs
-                . sorry
-                . assumption
-        sorry
+              . apply False.elim
+                apply Hx1
+                subst x1
+                right
+                use y'
+                simp
+                assumption
+            subst y'
+            unfold getType
+            simp
+          . have h' : y' ≠ x' := by
+              intro
+              subst y'
+              unfold var_update at Hupdate
+              simp at Hupdate
+              specialize Hupdate h
+              subst x1
+              apply Hx1
+              left
+              use y
+              simp
+              assumption
+            unfold getType
+            split_ifs <;> try contradiction
+            unfold var_update at Hupdate
+            split_ifs at Hupdate ; try contradiction
+            apply ctxt_equiv <;> assumption
+        specialize ih alpha_equiv ctxt_equiv' h'
+        rw [ih]
+
 
 lemma AlphaEquivPreservesType :
   ∀ {M M' : Λ V 𝕍} {Γ : TCtxt V 𝕍} {σ : 𝕋 𝕍},
       (M =ₐ M') → (Γ ⊢ M : σ) → (Γ ⊢ M' : σ) := by
   introv; intro h h'
-  exact AlphaEquivPreservesType' h (by introv; simp) h'
+  apply AlphaEquivPreservesType'
+  . assumption
+  . simp
+    introv ; intros
+    subst x
+    rfl
+  . assumption
 
 def substitutible (N M : Λ V 𝕍) : Prop :=
   ∀ x, x ∈ boundVarsOfTerm M → x ∉ freeVarsOfTerm N
