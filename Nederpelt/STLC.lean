@@ -4,7 +4,7 @@ set_option autoImplicit false
 
 inductive 𝕋 (𝕍 : Type) : Type
 | TConst : 𝕍    → 𝕋 𝕍
-| To   : 𝕋 𝕍 → 𝕋 𝕍 → 𝕋 𝕍
+| To   : 𝕋 𝕍 → 𝕋 𝕍 → 𝕋 𝕍3
 deriving DecidableEq
 
 inductive Λ (V : Type) (𝕍 : Type) : Type
@@ -48,6 +48,10 @@ def boundVarsOfTerm : Λ V 𝕍 → Finset V
 | .Lam x _ M => (boundVarsOfTerm M) ∪ {x}
 
 @[simp]
+def varsOfTerm (t : Λ V 𝕍) : Finset V :=
+  freeVarsOfTerm t ∪ boundVarsOfTerm t
+
+@[simp]
 def subVarInTerm (x : V) (N : Λ V 𝕍) : Λ V 𝕍 → Λ V 𝕍
 | .Var x'     => if x = x'
                  then N 
@@ -57,20 +61,21 @@ def subVarInTerm (x : V) (N : Λ V 𝕍) : Λ V 𝕍 → Λ V 𝕍
 | .Lam x' τ M => Λ.Lam x' τ (if x = x' then M else subVarInTerm x N M)
 -- | .TLam α M   => Λ.TLam α (subVarInTerm x N M)
 
+def var_update (var_map : V -> V) (to_replace replacement : V) (x : V) : V :=
+  if x = to_replace then replacement else var_map x
 
 @[simp]
-def AlphaEquiv' (var_map : V → Option V) : Λ V 𝕍 → Λ V 𝕍 → Prop
-| .Var x₀, .Var x₁ => var_map x₀ = some x₁ ∨ (var_map x₀ = none ∧ x₀ = x₁) 
+def AlphaEquiv' (var_map₀ var_map₁ : V →  V) : Λ V 𝕍 → Λ V 𝕍 → Prop
+| .Var x₀, .Var x₁ => var_map₀ x₀ = var_map₁ x₁ 
 | .App M₀ M₀', .App M₁ M₁' => 
-  AlphaEquiv' var_map M₀ M₁ ∧
-  AlphaEquiv' var_map M₀' M₁'
-| .Lam x₀ σ₀ M₀, .Lam x₁ σ₁ M₁ =>
-  AlphaEquiv' (λ vn => if vn = x₀ then some x₁ else var_map vn) M₀ M₁ ∧
-  σ₀ = σ₁
+  AlphaEquiv' var_map₀ var_map₁ M₀ M₁ ∧
+  AlphaEquiv' var_map₀ var_map₁ M₀' M₁'
+| .Lam x₀ σ₀ M₀, .Lam x₁ σ₁ M₁ => σ₀ = σ₁ ∧ ∃ x' : V, x' ∉ (freeVarsOfTerm M₀).map var_map₀ ∪ varsOfTerm M₁ ∧
+  AlphaEquiv' (var_update var_map₀ x₀ x') (var_update var_map₁ x₁ x') M₀ M₁
 | _, _ => False
   
 @[simp]
-def AlphaEquiv (M N : Λ V 𝕍) : Prop := AlphaEquiv' (λ _ => .none) M N
+def AlphaEquiv (M N : Λ V 𝕍) : Prop := AlphaEquiv' id id M N
 
 
 @[simp]
@@ -218,11 +223,10 @@ lemma typeUniqueness (Γ : TCtxt V 𝕍) (M : Λ V 𝕍) (σ τ : 𝕋 𝕍) :
   
 lemma AlphaEquivPreservesType' :
   ∀ {M' M : Λ V 𝕍} {Γ Γ' : TCtxt V 𝕍} {σ : 𝕋 𝕍}
-    {var_map : V → Option V},
-      AlphaEquiv' var_map M M' →
-      (∀ x : V, x ∈ freeVarsOfTerm M →
-        (var_map x = none ∧ getType x Γ = getType x Γ') ∨
-        (∃ y : V, var_map x = some y ∧ getType x Γ = getType y Γ')
+    {var_map var_map' : V → V},
+      AlphaEquiv' var_map var_map' M M' →
+      (∀ x x' : V, x ∈ freeVarsOfTerm M → x' ∈ freeVarsOfTerm M' →
+        var_map x = var_map' x' -> getType x Γ = getType x' Γ'
       )
       → (Γ ⊢ M : σ) → (Γ' ⊢ M' : σ) := by
   intros M'
@@ -232,42 +236,28 @@ lemma AlphaEquivPreservesType' :
     intros alpha_equiv ctxt_equiv
     match M with
     | .Var x =>
-      simp at alpha_equiv
-      rcases alpha_equiv with var_map_x_to_y | ⟨var_map_x_is_none, x_eq_y⟩
-      · specialize ctxt_equiv x 
-        simp [var_map_x_to_y] at ctxt_equiv
-        simp [ctxt_equiv]
-      · simp
-        specialize ctxt_equiv x
-        rw [←x_eq_y]
-        simp [var_map_x_is_none] at ctxt_equiv
-        simp [ctxt_equiv]
+      simp at alpha_equiv ctxt_equiv |-
+      intro Hx
+      rewrite [<- Hx]
+      symm
+      apply ctxt_equiv
+      assumption
   | App M₀' M₁' ih₀ ih₁ =>
     introv 
     intros alpha_equiv ctxt_equiv h
     match M with
     | .App M₀ M₁ =>
-      simp at alpha_equiv
+      simp at alpha_equiv ctxt_equiv |-
       rw [←appl_rule] at h
       rcases h with ⟨τ, h₀, h₁⟩
-      have ctxt_equiv₀ : ∀ (x : V), x ∈ freeVarsOfTerm M₀ →
-        var_map x = none ∧ getType x Γ = getType x Γ' ∨ ∃ y, var_map x = some y ∧ getType x Γ = getType y Γ'
-      {
-        intros x Hx 
-        apply ctxt_equiv
-        simp
-        left
-        assumption
-      }
-      have ctxt_equiv₁ : ∀ (x : V), x ∈ freeVarsOfTerm M₁ →
-        var_map x = none ∧ getType x Γ = getType x Γ' ∨ ∃ y, var_map x = some y ∧ getType x Γ = getType y Γ'
-      {
-        intros x Hx 
-        apply ctxt_equiv
-        simp
-        right
-        assumption
-      }
+      have ctxt_equiv₀ : ∀ (x x' : V), x ∈ freeVarsOfTerm M₀ → x' ∈ freeVarsOfTerm M₀' → 
+        var_map x = var_map' x' -> getType x Γ = getType x' Γ' := by
+        intros x x' Hx Hx' 
+        apply ctxt_equiv <;> simp <;> left <;> assumption
+      have ctxt_equiv₁ : ∀ (x x' : V), x ∈ freeVarsOfTerm M₁ → x' ∈ freeVarsOfTerm M₁' → 
+        var_map x = var_map' x' -> getType x Γ = getType x' Γ' := by
+        intros x x' Hx Hx' 
+        apply ctxt_equiv <;> simp <;> right <;> assumption
       specialize ih₀ alpha_equiv.1 ctxt_equiv₀ h₀
       specialize ih₁ alpha_equiv.2 ctxt_equiv₁ h₁
       simp
@@ -280,24 +270,28 @@ lemma AlphaEquivPreservesType' :
     | .Var _ => contradiction
     | .App _ _ => contradiction
     | .Lam x τ M =>
-      simp at alpha_equiv h ctxt_equiv
+      simp at alpha_equiv h ctxt_equiv |-
       generalize h' : typeOf (Γ;; x : τ) M = aux
       rw [h'] at h
       match aux with
       | none => contradiction
       | some σ' =>
+        rcases alpha_equiv with ⟨Heq, x1, Hx1, alpha_equiv⟩ 
         simp at h
-        rw [alpha_equiv.2] at h
-        rw [←h]
+        subst τ' σ
         simp
-        
         have ctxt_equiv' : 
-         ∀ (y : V), y ∈ freeVarsOfTerm M →
-             ((if y = x then some x' else var_map y) = none ∧ getType y (Γ;; x : τ) = getType y (Γ';; x' : τ')) ∨ 
-             (∃ z, (if y = x then some x' else var_map y) = some z ∧ getType y (Γ;; x : τ) = getType z (Γ';; x' : τ')) := by 
-          intros y Hy
+         ∀ (y y' : V), y ∈ freeVarsOfTerm M → y' ∈ freeVarsOfTerm M' →
+           var_update var_map x x1 y = var_update var_map' x' x1 y' → getType y (Γ;; x : τ) = getType y' (Γ';; x' : τ) := by 
+          intros y y' Hy Hy' Hupdate
           by_cases h : y = x
-          . simp [h, alpha_equiv.2]
+          . subst y
+            have h' : y' = x' := by
+              unfold var_update at Hupdate
+              simp at Hupdate
+
+
+          simp [h]
           . simp [h]
             rcases alpha_equiv with ⟨alpha_equiv, Heq⟩
             rcases ctxt_equiv y h Hy with ⟨Hy1, Hy2⟩ | ⟨y', Hy1, Hy2⟩
